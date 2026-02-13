@@ -124,6 +124,19 @@
         function deg2rad(deg) {
             return deg * (Math.PI / 180);
         }
+        // Yritä pitää näyttö päällä (Wake Lock API)
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    statusDiv.innerHTML += "<br>Näyttö lukittu päälle.";
+  } catch (err) {
+    statusDiv.innerHTML += "<br>Virhe: Näyttö saattaa sammua.";
+  }
+}
+// Pyydä lupaa heti kun sivu latautuu tai käyttäjä klikkaa jotain
+document.addEventListener('click', requestWakeLock);
+requestWakeLock();
     </script>
 </body>
 </html>
