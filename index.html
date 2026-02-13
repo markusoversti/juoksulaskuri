@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juoksulaskuri</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #222; color: #fff; display: flex; flex-direction: column; justify-content: center; height: 100vh; margin: 0; }
+        h1 { font-size: 2rem; margin-bottom: 0; color: #aaa; }
+        #counter { font-size: 8rem; font-weight: bold; margin: 10px 0; color: #0f0; }
+        .btn { padding: 20px; font-size: 1.2rem; background: #444; color: white; border: none; border-radius: 10px; margin: 10px; width: 80%; max-width: 300px; touch-action: manipulation; }
+        .btn-set { background: #007bff; }
+        .btn-reset { background: #dc3545; }
+        #status { font-size: 0.9rem; color: #ccc; margin-top: 20px; }
+        #dist { font-size: 1.5rem; color: #ffeb3b; min-height: 1.5rem; }
+    </style>
+</head>
+<body>
+
+    <h1>Kierrokset</h1>
+    <div id="counter">0</div>
+    <div id="dist">-- m</div>
+
+    <button class="btn btn-set" onclick="setStartPoint()">📍 Aseta lähtöviiva tässä</button>
+    <button class="btn btn-reset" onclick="resetLaps()">Nollaa laskuri</button>
+
+    <div id="status">Odotetaan GPS-signaalia...</div>
+
+    <script>
+        let startLat = null;
+        let startLon = null;
+        let laps = 0;
+        let lastLapTime = 0;
+        const MIN_LAP_TIME = 45000; // 45 sekuntia (estä tuplalaskut jos seisot viivalla)
+        const DETECTION_RADIUS = 15; // Metriä (GPS-epätarkkuuden varalta)
+
+        const statusDiv = document.getElementById('status');
+        const distDiv = document.getElementById('dist');
+        const counterDiv = document.getElementById('counter');
+
+        // Käynnistä GPS-seuranta
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(updatePosition, handleError, {
+                enableHighAccuracy: true,
+                maximumAge: 0,
+                timeout: 5000
+            });
+        } else {
+            statusDiv.innerHTML = "Selaimesi ei tue GPS:ää.";
+        }
+
+        function updatePosition(position) {
+            const currentLat = position.coords.latitude;
+            const currentLon = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+
+            statusDiv.innerHTML = `GPS Tarkkuus: ±${Math.round(accuracy)}m`;
+
+            if (startLat != null) {
+                const distance = getDistanceFromLatLonInM(startLat, startLon, currentLat, currentLon);
+                distDiv.innerHTML = Math.round(distance) + " m lähtöviivasta";
+
+                // LOGIIKKA: Ollaanko säteen sisällä?
+                if (distance < DETECTION_RADIUS) {
+                    const now = Date.now();
+                    // Onko edellisestä kierroksesta tarpeeksi aikaa?
+                    if (now - lastLapTime > MIN_LAP_TIME) {
+                        laps++;
+                        lastLapTime = now;
+                        counterDiv.innerText = laps;
+                        playSound(); // Soita ääni
+                        statusDiv.style.color = "#0f0";
+                        setTimeout(() => statusDiv.style.color = "#ccc", 2000);
+                    }
+                }
+            }
+        }
+
+        function setStartPoint() {
+            navigator.geolocation.getCurrentPosition((position) => {
+                startLat = position.coords.latitude;
+                startLon = position.coords.longitude;
+                laps = 0;
+                lastLapTime = Date.now(); // Estä heti laskeminen
+                counterDiv.innerText = 0;
+                alert("Lähtöviiva asetettu! Juokse pois ja palaa takaisin.");
+            });
+        }
+
+        function resetLaps() {
+            laps = 0;
+            counterDiv.innerText = 0;
+        }
+
+        function handleError(error) {
+            statusDiv.innerHTML = "Virhe GPS:ssä: " + error.message;
+        }
+
+        function playSound() {
+            // Yksinkertainen 'piip' oskillaattorilla
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+            oscillator.connect(audioCtx.destination);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.1);
+        }
+
+        // Haversine-kaava etäisyyden laskemiseen (metreinä)
+        function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
+            var R = 6371000; // Maapallon säde metreinä
+            var dLat = deg2rad(lat2 - lat1);
+            var dLon = deg2rad(lon2 - lon1);
+            var a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            var d = R * c;
+            return d;
+        }
+
+        function deg2rad(deg) {
+            return deg * (Math.PI / 180);
+        }
+    </script>
+</body>
+</html>
